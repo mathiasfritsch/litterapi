@@ -1,0 +1,7 @@
+esptool.py --chip esp32 --port COM4 write_flash -z 0x1000  C:\tools\esp32-idf3-20200330-v1.12-325-g581f9135a.bin
+
+esptool.py erase_flash
+
+
+ampy --port com4  put main.py
+

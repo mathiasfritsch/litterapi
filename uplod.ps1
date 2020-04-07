@@ -1,0 +1,1 @@
+ampy --port com4  put main.py
