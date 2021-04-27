@@ -4,50 +4,86 @@ import utime
 import urequests
 import machine
 import ntptime
-from machine import Pin
+from machine import Pin, ADC
+import ujson
 
-wifi_ssid = ""
-wifi_password = ""
+def setleds(leds):
+  print(leds)
+  for binIndex in range(4):
+      utime.sleep_ms(100)
+      pinData.value(leds[binIndex])
+      utime.sleep_ms(100)
+      pinClock.value(1)
+      utime.sleep_ms(100)
+      pinClock.value(0)
+try:
+  utime.sleep_ms(1000 * 10 )
 
-station = network.WLAN(network.STA_IF)
-station.active(True)
+  battery = ADC(Pin(32))
+  battery.atten(ADC.ATTN_11DB)  #Full range: 3.3v
+  battery_value = battery.read()
+  battery_voltage = (battery_value/4095.) * 2 * 3.3
+  print(battery_voltage )
 
-while not station.isconnected():
-    station.connect(wifi_ssid, wifi_password)
-    utime.sleep_ms(300)
+  wifi_ssid = ""
+  wifi_password = ""
 
-ntptime.settime()
-rtc = machine.RTC()
-date = rtc.datetime()
-utcOffset = 1
-time = date[4] + utcOffset
+  station = network.WLAN(network.STA_IF)
+  station.active(True)
+  station.connect(wifi_ssid, wifi_password)
+  maxloop = 10
+  utime.sleep_ms(3000)
+  print(station.isconnected() )
 
-bins = ["red", "green", "yellow","blue"]
-results =  [0, 0, 0, 0]
+  while not station.isconnected() and maxloop > 0:
+      maxloop -= 1
+      print(maxloop)
+      utime.sleep_ms(3000)
 
-allwaysRequestData = False
-allwaysRequestData = True
+  bins = ["green","red","blue", "yellow"]
+  results =  [0, 0, 0, 0]
 
-if time > 16 and time < 20 or time > 6 and time < 9 or allwaysRequestData:
+  post_data = ujson.dumps({ 'voltage': battery_voltage })
+  print(post_data)
+
+  r = urequests.post("https://litterapi.azurewebsites.net/api/Battery",
+    headers = {'content-type': 'application/json'},
+    data=post_data)
+
+  r.close()
+
   for binIndex in range(4):
     r = urequests.get("https://litterapi.azurewebsites.net/api/LitterDate/" + bins[binIndex] )
-    print(r.text)
     if r.text == "1":
       results[binIndex] = 1
     r.close()
 
-print(results)
+  print(results)
 
-pinClock = Pin(2, Pin.OUT) 
-pinData = Pin(4, Pin.OUT) 
+  pinClock = Pin(2, Pin.OUT) 
+  pinData = Pin(4, Pin.OUT) 
 
-pinClock.value(0) 
-pinData.value(0) 
+  pinClock.value(0) 
+  pinData.value(0) 
 
-for binIndex in range(4):
-    utime.sleep_ms(100)
-    pinData.value(results[binIndex])
-    utime.sleep_ms(100)
-    pinClock.value(1)
-    utime.sleep_ms(100)
-    pinClock.value(0)
+  setleds( [0, 0, 0, 0])
+  setleds( [1, 1, 1, 1])
+  setleds(results)
+
+  utime.sleep_ms(1000 * 2 )
+
+  setleds( [0, 0, 0, 0])
+  setleds( [1, 1, 1, 1])
+  setleds(results)
+
+  utime.sleep_ms(1000 * 2 )
+
+  setleds( [0, 0, 0, 0])
+  setleds( [1, 1, 1, 1])
+  setleds(results)
+
+  utime.sleep_ms(1000 * 10 )
+
+finally:
+  print('ok')
+  machine.deepsleep(1000 * 60 * 60 )
